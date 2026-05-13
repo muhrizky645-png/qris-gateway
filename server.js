@@ -1,5 +1,11 @@
-const toCRC16 = require("./crc16");
+const express = require("express");
 
-const result = toCRC16("TEST");
+const app = express();
 
-console.log(result);
+app.get("/", (req, res) => {
+    res.send("QRIS Gateway Running");
+});
+
+app.listen(3000, () => {
+    console.log("Server running on port 3000");
+});
