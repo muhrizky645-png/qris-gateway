@@ -16,19 +16,25 @@ const qris =
 
 // homepage
 app.get("/", (req, res) => {
+
     res.send("QRIS Gateway Running");
+
 });
 
 // generate QR payment
 app.get("/pay", async (req, res) => {
 
-    const amount = req.query.amount || 1000;
+    const amount =
+        req.query.amount || 1000;
 
-    const result = makeDynamicQRIS(qris, amount);
+    const result =
+        makeDynamicQRIS(qris, amount);
 
-    const qrImage = await QRCode.toDataURL(result);
+    const qrImage =
+        await QRCode.toDataURL(result);
 
     res.send(`
+    
         <h1>QRIS Dynamic</h1>
 
         <p>
@@ -37,12 +43,12 @@ app.get("/pay", async (req, res) => {
         </p>
 
         <img src="${qrImage}" />
+
     `);
 
 });
 
-// create payment
-app.post("/create-payment", (req, res) => {
+// create payment TEST via browser
 app.get("/create-payment-test", (req, res) => {
 
     const product =
@@ -62,6 +68,7 @@ app.get("/create-payment-test", (req, res) => {
         created_at: new Date()
     };
 
+    // simpan transaksi
     transactions.push(transaction);
 
     res.send({
@@ -81,6 +88,10 @@ app.get("/create-payment-test", (req, res) => {
     });
 
 });
+
+// create payment API
+app.post("/create-payment", (req, res) => {
+
     const { product, amount } = req.body;
 
     // validasi
@@ -109,7 +120,6 @@ app.get("/create-payment-test", (req, res) => {
     // simpan transaksi
     transactions.push(transaction);
 
-    // response
     res.send({
 
         status: true,
@@ -167,5 +177,7 @@ app.get("/check-payment/:invoice", (req, res) => {
 
 // server
 app.listen(3000, () => {
+
     console.log("Server running on port 3000");
+
 });
