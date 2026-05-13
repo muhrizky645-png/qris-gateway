@@ -1,15 +1,20 @@
 const express = require("express");
-const toCRC16 = require("./crc16");
+
+const makeDynamicQRIS = require("./qris");
 
 const app = express();
 
 app.get("/", (req, res) => {
 
-    const crc = toCRC16("TEST");
+    const qris =
+"00020101021126690021ID.CO.BANKMANDIRI.WWW01189360000801662700160211716627001640303UMI51440014ID.CO.QRIS.WWW0215ID10243516740060303UMI5204274153033605802ID5915Pijat Mas Jamal6012Sleman (Kab)61055551362070703A016304194B";
+
+    const result = makeDynamicQRIS(qris, 15000);
 
     res.send({
-        message: "QRIS Gateway Running",
-        crc: crc
+        status: true,
+        amount: 15000,
+        qris: result
     });
 
 });
