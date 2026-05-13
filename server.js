@@ -43,7 +43,44 @@ app.get("/pay", async (req, res) => {
 
 // create payment
 app.post("/create-payment", (req, res) => {
+app.get("/create-payment-test", (req, res) => {
 
+    const product =
+        req.query.product || "Produk";
+
+    const amount =
+        req.query.amount || 1000;
+
+    const invoice =
+        "INV-" + Date.now();
+
+    const transaction = {
+        invoice,
+        product,
+        amount,
+        status: "PENDING",
+        created_at: new Date()
+    };
+
+    transactions.push(transaction);
+
+    res.send({
+
+        status: true,
+
+        data: {
+            invoice,
+            product,
+            amount,
+            status: "PENDING",
+
+            pay_url:
+                `/pay?amount=${amount}`
+        }
+
+    });
+
+});
     const { product, amount } = req.body;
 
     // validasi
