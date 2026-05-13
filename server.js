@@ -17,7 +17,7 @@ app.use(express.json());
 const db = mysql.createPool({
     host: "srv1785.hstgr.io",
     user: "u608253779_admin",
-    password: "PASSWORDMYSQLKAMU",
+    password: "Qris12345!",
     database: "u608253779_qris"
 });
 
