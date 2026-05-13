@@ -1,6 +1,6 @@
 const express = require("express");
 const QRCode = require("qrcode");
-const fs = require("fs");
+const mysql = require("mysql2/promise");
 
 const makeDynamicQRIS = require("./qris");
 
@@ -8,41 +8,79 @@ const app = express();
 
 app.use(express.json());
 
-// file database
-const DB_FILE = "./transactions.json";
+/*
+|--------------------------------------------------------------------------
+| MYSQL CONFIG
+|--------------------------------------------------------------------------
+*/
 
-// baca database
-function readTransactions() {
+const db = mysql.createPool({
+    host: "srv1785.hstgr.io",
+    user: "u608253779_admin",
+    password: "PASSWORDMYSQLKAMU",
+    database: "u608253779_qris"
+});
 
-    const data =
-        fs.readFileSync(DB_FILE);
+/*
+|--------------------------------------------------------------------------
+| CREATE TABLE
+|--------------------------------------------------------------------------
+*/
 
-    return JSON.parse(data);
+async function initDB() {
+
+    await db.query(`
+    
+        CREATE TABLE IF NOT EXISTS transactions (
+
+            id INT AUTO_INCREMENT PRIMARY KEY,
+
+            invoice VARCHAR(255),
+            product VARCHAR(255),
+            amount INT,
+
+            status VARCHAR(50),
+
+            created_at DATETIME,
+            paid_at DATETIME NULL
+
+        )
+
+    `);
+
+    console.log("MySQL Connected");
 
 }
 
-// simpan database
-function saveTransactions(data) {
+initDB();
 
-    fs.writeFileSync(
-        DB_FILE,
-        JSON.stringify(data, null, 2)
-    );
+/*
+|--------------------------------------------------------------------------
+| QRIS STATIC
+|--------------------------------------------------------------------------
+*/
 
-}
-
-// QRIS statis merchant
 const qris =
 "00020101021126690021ID.CO.BANKMANDIRI.WWW01189360000801662700160211716627001640303UMI51440014ID.CO.QRIS.WWW0215ID10243516740060303UMI5204274153033605802ID5915Pijat Mas Jamal6012Sleman (Kab)61055551362070703A016304194B";
 
-// homepage
+/*
+|--------------------------------------------------------------------------
+| HOME
+|--------------------------------------------------------------------------
+*/
+
 app.get("/", (req, res) => {
 
     res.send("QRIS Gateway Running");
 
 });
 
-// generate QR payment
+/*
+|--------------------------------------------------------------------------
+| PAY PAGE
+|--------------------------------------------------------------------------
+*/
+
 app.get("/pay", async (req, res) => {
 
     const amount =
@@ -69,8 +107,13 @@ app.get("/pay", async (req, res) => {
 
 });
 
-// create payment TEST
-app.get("/create-payment-test", (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| CREATE PAYMENT TEST
+|--------------------------------------------------------------------------
+*/
+
+app.get("/create-payment-test", async (req, res) => {
 
     const product =
         req.query.product || "Produk";
@@ -81,24 +124,23 @@ app.get("/create-payment-test", (req, res) => {
     const invoice =
         "INV-" + Date.now();
 
-    // ambil transaksi lama
-    const transactions =
-        readTransactions();
+    await db.query(
 
-    // transaksi baru
-    const transaction = {
-        invoice,
-        product,
-        amount,
-        status: "PENDING",
-        created_at: new Date()
-    };
+        `
+        INSERT INTO transactions
+        (invoice, product, amount, status, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        `,
 
-    // push transaksi
-    transactions.push(transaction);
+        [
+            invoice,
+            product,
+            amount,
+            "PENDING",
+            new Date()
+        ]
 
-    // simpan database
-    saveTransactions(transactions);
+    );
 
     res.send({
 
@@ -118,8 +160,13 @@ app.get("/create-payment-test", (req, res) => {
 
 });
 
-// create payment API
-app.post("/create-payment", (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| CREATE PAYMENT API
+|--------------------------------------------------------------------------
+*/
+
+app.post("/create-payment", async (req, res) => {
 
     const { product, amount } =
         req.body;
@@ -137,23 +184,23 @@ app.post("/create-payment", (req, res) => {
     const invoice =
         "INV-" + Date.now();
 
-    // baca transaksi
-    const transactions =
-        readTransactions();
+    await db.query(
 
-    const transaction = {
-        invoice,
-        product,
-        amount,
-        status: "PENDING",
-        created_at: new Date()
-    };
+        `
+        INSERT INTO transactions
+        (invoice, product, amount, status, created_at)
+        VALUES (?, ?, ?, ?, ?)
+        `,
 
-    // tambah transaksi
-    transactions.push(transaction);
+        [
+            invoice,
+            product,
+            amount,
+            "PENDING",
+            new Date()
+        ]
 
-    // simpan database
-    saveTransactions(transactions);
+    );
 
     res.send({
 
@@ -173,34 +220,50 @@ app.post("/create-payment", (req, res) => {
 
 });
 
-// semua transaksi
-app.get("/transactions", (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| ALL TRANSACTIONS
+|--------------------------------------------------------------------------
+*/
 
-    const transactions =
-        readTransactions();
+app.get("/transactions", async (req, res) => {
+
+    const [rows] =
+        await db.query(
+            "SELECT * FROM transactions ORDER BY id DESC"
+        );
 
     res.send({
-        total: transactions.length,
-        data: transactions
+        total: rows.length,
+        data: rows
     });
 
 });
 
-// check invoice
-app.get("/check-payment/:invoice", (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| CHECK PAYMENT
+|--------------------------------------------------------------------------
+*/
+
+app.get("/check-payment/:invoice", async (req, res) => {
 
     const invoice =
         req.params.invoice;
 
-    const transactions =
-        readTransactions();
+    const [rows] =
+        await db.query(
 
-    const transaction =
-        transactions.find(
-            x => x.invoice === invoice
+            `
+            SELECT * FROM transactions
+            WHERE invoice=?
+            `,
+
+            [invoice]
+
         );
 
-    if (!transaction) {
+    if (rows.length === 0) {
 
         return res.send({
             status: false,
@@ -212,26 +275,35 @@ app.get("/check-payment/:invoice", (req, res) => {
 
     res.send({
         status: true,
-        data: transaction
+        data: rows[0]
     });
 
 });
 
-// confirm payment manual
-app.get("/confirm-payment/:invoice", (req, res) => {
+/*
+|--------------------------------------------------------------------------
+| CONFIRM PAYMENT
+|--------------------------------------------------------------------------
+*/
+
+app.get("/confirm-payment/:invoice", async (req, res) => {
 
     const invoice =
         req.params.invoice;
 
-    const transactions =
-        readTransactions();
+    const [rows] =
+        await db.query(
 
-    const index =
-        transactions.findIndex(
-            x => x.invoice === invoice
+            `
+            SELECT * FROM transactions
+            WHERE invoice=?
+            `,
+
+            [invoice]
+
         );
 
-    if (index === -1) {
+    if (rows.length === 0) {
 
         return res.send({
             status: false,
@@ -241,26 +313,51 @@ app.get("/confirm-payment/:invoice", (req, res) => {
 
     }
 
-    // ubah status
-    transactions[index].status =
-        "PAID";
+    await db.query(
 
-    transactions[index].paid_at =
-        new Date();
+        `
+        UPDATE transactions
+        SET
+            status=?,
+            paid_at=?
+        WHERE invoice=?
+        `,
 
-    // simpan
-    saveTransactions(transactions);
+        [
+            "PAID",
+            new Date(),
+            invoice
+        ]
+
+    );
+
+    const [updated] =
+        await db.query(
+
+            `
+            SELECT * FROM transactions
+            WHERE invoice=?
+            `,
+
+            [invoice]
+
+        );
 
     res.send({
         status: true,
         message:
             "Pembayaran berhasil dikonfirmasi",
-        data: transactions[index]
+        data: updated[0]
     });
 
 });
 
-// server
+/*
+|--------------------------------------------------------------------------
+| SERVER
+|--------------------------------------------------------------------------
+*/
+
 app.listen(3000, () => {
 
     console.log(
