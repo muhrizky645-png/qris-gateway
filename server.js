@@ -18,7 +18,11 @@ const db = mysql.createPool({
     host: "srv1785.hstgr.io",
     user: "u608253779_admin",
     password: "Qris12345!",
-    database: "u608253779_qris"
+    database: "u608253779_qris",
+
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0
 });
 
 /*
@@ -52,7 +56,9 @@ async function initDB() {
 
 }
 
-initDB();
+initDB().catch(err => {
+    console.log(err);
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -83,27 +89,38 @@ app.get("/", (req, res) => {
 
 app.get("/pay", async (req, res) => {
 
-    const amount =
-        req.query.amount || 1000;
+    try {
 
-    const result =
-        makeDynamicQRIS(qris, amount);
+        const amount =
+            req.query.amount || 1000;
 
-    const qrImage =
-        await QRCode.toDataURL(result);
+        const result =
+            makeDynamicQRIS(qris, amount);
 
-    res.send(`
-    
-        <h1>QRIS Dynamic</h1>
+        const qrImage =
+            await QRCode.toDataURL(result);
 
-        <p>
-            Nominal:
-            Rp${Number(amount).toLocaleString("id-ID")}
-        </p>
+        res.send(`
+        
+            <h1>QRIS Dynamic</h1>
 
-        <img src="${qrImage}" />
+            <p>
+                Nominal:
+                Rp${Number(amount).toLocaleString("id-ID")}
+            </p>
 
-    `);
+            <img src="${qrImage}" />
+
+        `);
+
+    } catch (err) {
+
+        res.send({
+            status: false,
+            error: err.message
+        });
+
+    }
 
 });
 
@@ -115,48 +132,59 @@ app.get("/pay", async (req, res) => {
 
 app.get("/create-payment-test", async (req, res) => {
 
-    const product =
-        req.query.product || "Produk";
+    try {
 
-    const amount =
-        req.query.amount || 1000;
+        const product =
+            req.query.product || "Produk";
 
-    const invoice =
-        "INV-" + Date.now();
+        const amount =
+            req.query.amount || 1000;
 
-    await db.query(
+        const invoice =
+            "INV-" + Date.now();
 
-        `
-        INSERT INTO transactions
-        (invoice, product, amount, status, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        `,
+        await db.query(
 
-        [
-            invoice,
-            product,
-            amount,
-            "PENDING",
-            new Date()
-        ]
+            `
+            INSERT INTO transactions
+            (invoice, product, amount, status, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            `,
 
-    );
+            [
+                invoice,
+                product,
+                amount,
+                "PENDING",
+                new Date()
+            ]
 
-    res.send({
+        );
 
-        status: true,
+        res.send({
 
-        data: {
-            invoice,
-            product,
-            amount,
-            status: "PENDING",
+            status: true,
 
-            pay_url:
-                `/pay?amount=${amount}`
-        }
+            data: {
+                invoice,
+                product,
+                amount,
+                status: "PENDING",
 
-    });
+                pay_url:
+                    `/pay?amount=${amount}`
+            }
+
+        });
+
+    } catch (err) {
+
+        res.send({
+            status: false,
+            error: err.message
+        });
+
+    }
 
 });
 
@@ -168,55 +196,66 @@ app.get("/create-payment-test", async (req, res) => {
 
 app.post("/create-payment", async (req, res) => {
 
-    const { product, amount } =
-        req.body;
+    try {
 
-    if (!product || !amount) {
+        const { product, amount } =
+            req.body;
 
-        return res.send({
+        if (!product || !amount) {
+
+            return res.send({
+                status: false,
+                message:
+                    "product dan amount wajib diisi"
+            });
+
+        }
+
+        const invoice =
+            "INV-" + Date.now();
+
+        await db.query(
+
+            `
+            INSERT INTO transactions
+            (invoice, product, amount, status, created_at)
+            VALUES (?, ?, ?, ?, ?)
+            `,
+
+            [
+                invoice,
+                product,
+                amount,
+                "PENDING",
+                new Date()
+            ]
+
+        );
+
+        res.send({
+
+            status: true,
+
+            data: {
+                invoice,
+                product,
+                amount,
+                status: "PENDING",
+
+                pay_url:
+                    `/pay?amount=${amount}`
+            }
+
+        });
+
+    } catch (err) {
+
+        res.send({
             status: false,
-            message:
-                "product dan amount wajib diisi"
+            error: err.message
         });
 
     }
-
-    const invoice =
-        "INV-" + Date.now();
-
-    await db.query(
-
-        `
-        INSERT INTO transactions
-        (invoice, product, amount, status, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        `,
-
-        [
-            invoice,
-            product,
-            amount,
-            "PENDING",
-            new Date()
-        ]
-
-    );
-
-    res.send({
-
-        status: true,
-
-        data: {
-            invoice,
-            product,
-            amount,
-            status: "PENDING",
-
-            pay_url:
-                `/pay?amount=${amount}`
-        }
-
-    });
 
 });
 
@@ -228,15 +267,26 @@ app.post("/create-payment", async (req, res) => {
 
 app.get("/transactions", async (req, res) => {
 
-    const [rows] =
-        await db.query(
-            "SELECT * FROM transactions ORDER BY id DESC"
-        );
+    try {
 
-    res.send({
-        total: rows.length,
-        data: rows
-    });
+        const [rows] =
+            await db.query(
+                "SELECT * FROM transactions ORDER BY id DESC"
+            );
+
+        res.send({
+            total: rows.length,
+            data: rows
+        });
+
+    } catch (err) {
+
+        res.send({
+            status: false,
+            error: err.message
+        });
+
+    }
 
 });
 
@@ -248,35 +298,46 @@ app.get("/transactions", async (req, res) => {
 
 app.get("/check-payment/:invoice", async (req, res) => {
 
-    const invoice =
-        req.params.invoice;
+    try {
 
-    const [rows] =
-        await db.query(
+        const invoice =
+            req.params.invoice;
 
-            `
-            SELECT * FROM transactions
-            WHERE invoice=?
-            `,
+        const [rows] =
+            await db.query(
 
-            [invoice]
+                `
+                SELECT * FROM transactions
+                WHERE invoice=?
+                `,
 
-        );
+                [invoice]
 
-    if (rows.length === 0) {
+            );
 
-        return res.send({
+        if (rows.length === 0) {
+
+            return res.send({
+                status: false,
+                message:
+                    "Invoice tidak ditemukan"
+            });
+
+        }
+
+        res.send({
+            status: true,
+            data: rows[0]
+        });
+
+    } catch (err) {
+
+        res.send({
             status: false,
-            message:
-                "Invoice tidak ditemukan"
+            error: err.message
         });
 
     }
-
-    res.send({
-        status: true,
-        data: rows[0]
-    });
 
 });
 
@@ -288,67 +349,78 @@ app.get("/check-payment/:invoice", async (req, res) => {
 
 app.get("/confirm-payment/:invoice", async (req, res) => {
 
-    const invoice =
-        req.params.invoice;
+    try {
 
-    const [rows] =
+        const invoice =
+            req.params.invoice;
+
+        const [rows] =
+            await db.query(
+
+                `
+                SELECT * FROM transactions
+                WHERE invoice=?
+                `,
+
+                [invoice]
+
+            );
+
+        if (rows.length === 0) {
+
+            return res.send({
+                status: false,
+                message:
+                    "Invoice tidak ditemukan"
+            });
+
+        }
+
         await db.query(
 
             `
-            SELECT * FROM transactions
+            UPDATE transactions
+            SET
+                status=?,
+                paid_at=?
             WHERE invoice=?
             `,
 
-            [invoice]
+            [
+                "PAID",
+                new Date(),
+                invoice
+            ]
 
         );
 
-    if (rows.length === 0) {
+        const [updated] =
+            await db.query(
 
-        return res.send({
-            status: false,
+                `
+                SELECT * FROM transactions
+                WHERE invoice=?
+                `,
+
+                [invoice]
+
+            );
+
+        res.send({
+            status: true,
             message:
-                "Invoice tidak ditemukan"
+                "Pembayaran berhasil dikonfirmasi",
+            data: updated[0]
+        });
+
+    } catch (err) {
+
+        res.send({
+            status: false,
+            error: err.message
         });
 
     }
-
-    await db.query(
-
-        `
-        UPDATE transactions
-        SET
-            status=?,
-            paid_at=?
-        WHERE invoice=?
-        `,
-
-        [
-            "PAID",
-            new Date(),
-            invoice
-        ]
-
-    );
-
-    const [updated] =
-        await db.query(
-
-            `
-            SELECT * FROM transactions
-            WHERE invoice=?
-            `,
-
-            [invoice]
-
-        );
-
-    res.send({
-        status: true,
-        message:
-            "Pembayaran berhasil dikonfirmasi",
-        data: updated[0]
-    });
 
 });
 
